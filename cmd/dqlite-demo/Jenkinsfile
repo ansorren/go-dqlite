@@ -1,0 +1,27 @@
+node {
+    info = checkout scm
+    def commit = info.GIT_COMMIT
+    def target = env.JOB_NAME + "-" + commit
+
+    def secrets = [
+            [path: 'kv/ci/storage', engineVersion: 1, secretValues: [
+                [envVar: 'SPACES_KEY', vaultKey: 'spaces_key'],
+                [envVar: 'SPACES_SECRET', vaultKey: 'spaces_secret'],
+            ]],
+    ]
+
+    def configuration = [vaultUrl: 'https://vault.service.consul:8200',
+                         vaultCredentialId: 'vault_token',
+                         engineVersion: 1]
+
+    stage('Build') {
+        sh 'git config --global --add url."git@github.com:".insteadOf "https://github.com/"'
+        sh "cd cmd/dqlite-demo && go build -o ${target}"
+    }
+
+   stage('Push') {
+        withVault([configuration: configuration, vaultSecrets: secrets]) {
+            sh "cd cmd/dqlite-demo && /usr/local/bin/upload.py ${target}"
+        }
+   }
+}
